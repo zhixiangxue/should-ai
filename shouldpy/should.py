@@ -1,10 +1,10 @@
-import json
 import functools
 import inspect
-import textwrap
+import io
+import json
 import logging
 import sys
-import io
+import textwrap
 
 from langchain_core.language_models import BaseChatModel
 
@@ -12,12 +12,12 @@ from langchain_core.language_models import BaseChatModel
 class ShouldDecorator:
     """
     AI-driven test assertion decorator class
-    
+
     Usage:
     from shouldpy import should
-    
+
     should.use(llm)  # Configure LLM
-    
+
     @should("Expected condition")
     def test_function():
         return some_result()
@@ -29,10 +29,10 @@ class ShouldDecorator:
     def use(self, llm_client: BaseChatModel):
         """
         Configure LLM client
-        
+
         Args:
             llm_client: LLM client object with invoke method
-        
+
         Returns:
             self: Support method chaining
         """
@@ -42,11 +42,11 @@ class ShouldDecorator:
     def __call__(self, condition: str, llm_client=None):
         """
         Decorator call method
-        
+
         Args:
             condition: Natural language description of expected condition
             llm_client: Optional LLM client, uses global configuration if not provided
-        
+
         Returns:
             Decorator function
         """
@@ -55,7 +55,9 @@ class ShouldDecorator:
             # Determine which LLM client to use
             effective_llm = llm_client if llm_client is not None else self._llm_client
             if effective_llm is None:
-                raise ValueError("No LLM client configured, please use should.use(llm) to configure or pass llm_client parameter in decorator")
+                raise ValueError(
+                    "No LLM client configured, please use should.use(llm) to configure or pass llm_client parameter in decorator"
+                )
             if inspect.iscoroutinefunction(test_func):
                 # Handle async functions
                 @functools.wraps(test_func)
@@ -67,11 +69,13 @@ class ShouldDecorator:
                     # Create standard logging handler
                     class LogCapture(logging.Handler):
                         def emit(self, record):
-                            captured_logs.append({
-                                "message": self.format(record),
-                                "level": record.levelname,
-                                "timestamp": record.created
-                            })
+                            captured_logs.append(
+                                {
+                                    "message": self.format(record),
+                                    "level": record.levelname,
+                                    "timestamp": record.created,
+                                }
+                            )
 
                     # Create print output capturer
                     class PrintCapture(io.StringIO):
@@ -97,8 +101,9 @@ class ShouldDecorator:
                         actual_result = await test_func(*args, **kwargs)
 
                         # Call AI for judgment
-                        verdict = _call_ai_model(condition, captured_logs, captured_prints, actual_result,
-                                                 effective_llm)
+                        verdict = _call_ai_model(
+                            condition, captured_logs, captured_prints, actual_result, effective_llm
+                        )
                         if not verdict.startswith("PASS"):
                             raise AssertionError(f"AI assertion failed: {verdict}")
 
@@ -124,11 +129,13 @@ class ShouldDecorator:
                     # Create standard logging handler
                     class LogCapture(logging.Handler):
                         def emit(self, record):
-                            captured_logs.append({
-                                "message": self.format(record),
-                                "level": record.levelname,
-                                "timestamp": record.created
-                            })
+                            captured_logs.append(
+                                {
+                                    "message": self.format(record),
+                                    "level": record.levelname,
+                                    "timestamp": record.created,
+                                }
+                            )
 
                     # Create print output capturer
                     class PrintCapture(io.StringIO):
@@ -154,8 +161,9 @@ class ShouldDecorator:
                         actual_result = test_func(*args, **kwargs)
 
                         # Call AI for judgment
-                        verdict = _call_ai_model(condition, captured_logs, captured_prints, actual_result,
-                                                 effective_llm)
+                        verdict = _call_ai_model(
+                            condition, captured_logs, captured_prints, actual_result, effective_llm
+                        )
                         if not verdict.startswith("PASS"):
                             raise AssertionError(verdict)
 
@@ -173,17 +181,19 @@ class ShouldDecorator:
         return decorator
 
 
-def _call_ai_model(condition: str, logs: list[dict], prints: list[str], actual_result=None, llm_client=None) -> str:
+def _call_ai_model(
+    condition: str, logs: list[dict], prints: list[str], actual_result=None, llm_client=None
+) -> str:
     """
     Call AI model for judgment
-    
+
     Args:
         condition: Natural language description of expected condition
         logs: List of captured logs
         prints: List of captured print outputs
         actual_result: Actual return result of the function
         llm_client: LLM client object
-    
+
     Returns:
         AI judgment result, starting with "PASS" or "FAIL:"
     """
@@ -191,7 +201,8 @@ def _call_ai_model(condition: str, logs: list[dict], prints: list[str], actual_r
         return "FAIL: No LLM client configured"
 
     # Build prompt
-    prompt = textwrap.dedent(f"""
+    prompt = textwrap.dedent(
+        f"""
     Below is the context information from a test execution, expected condition: "{condition}"
     
     Execution logs:
@@ -206,7 +217,8 @@ def _call_ai_model(condition: str, logs: list[dict], prints: list[str], actual_r
     Please judge whether the expected condition is satisfied based on logs, print outputs and return result. Response format:
     PASS  or  FAIL: specific reason
     No additional explanation needed.
-    """)
+    """
+    )
 
     try:
         response = llm_client.invoke(prompt)

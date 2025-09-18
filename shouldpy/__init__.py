@@ -3,17 +3,17 @@ shouldpy - AI-driven test assertion decorator
 
 Usage:
     from shouldpy import should
-    
+
     # Configure LLM
     should.use(llm_client)
-    
+
     # Use as decorator
     @should("Expected condition")
     def test_function():
         return some_result()
 """
 
-from .should import should, ShouldDecorator
+from .should import ShouldDecorator, should
 
 __version__ = "0.1.0"
 __author__ = "zx"
