@@ -15,7 +15,7 @@ Usage:
 
 from .should import ShouldDecorator, should
 
-__version__ = "0.1.0"
+__version__ = "1.0.1"
 __author__ = "zx"
 __email__ = "your-email@example.com"
 __description__ = "AI-driven test assertion decorator for natural language testing"

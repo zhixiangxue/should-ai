@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "shouldpy"
-version = "0.1.0"
+version = "1.0.1"
 description = "AI-driven test assertion decorator for natural language testing"
 readme = "README.md"
 license = {text = "MIT"}
@@ -28,7 +28,7 @@ classifiers = [
 ]
 requires-python = ">=3.8"
 dependencies = [
-    "langchain-core>=0.1.0",
+    "langchain-openai>=0.1.0",
 ]
 
 [project.optional-dependencies]
@@ -39,8 +39,11 @@ dev = [
     "isort>=5.0",
     "mypy>=1.0",
 ]
-openai = [
-    "langchain-openai>=0.1.0",
+anthropic = [
+    "langchain-anthropic>=0.1.0",
+]
+gemini = [
+    "langchain-google-genai>=0.1.0",
 ]
 
 [project.urls]
