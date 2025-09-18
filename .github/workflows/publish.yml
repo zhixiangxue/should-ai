@@ -12,10 +12,9 @@ on:
       environment:
         description: '发布环境'
         required: true
-        default: 'testpypi'
+        default: 'pypi'
         type: choice
         options:
-        - testpypi
         - pypi
       version:
         description: '版本号 (可选，留空则使用当前版本)'
@@ -110,46 +109,13 @@ jobs:
         name: python-package-distributions
         path: dist/
 
-  # 发布到 TestPyPI
-  publish-testpypi:
-    needs: build
-    runs-on: ubuntu-latest
-    if: |
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'testpypi') ||
-      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && contains(github.ref, 'rc'))
-    
-    permissions:
-      id-token: write  # 用于 OIDC 身份验证
-    
-    steps:
-    - name: 下载构建产物
-      uses: actions/download-artifact@v4
-      with:
-        name: python-package-distributions
-        path: dist/
-    
-    - name: 发布到 TestPyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        repository-url: https://test.pypi.org/legacy/
-        verbose: true
-    
-    - name: 发布通知
-      run: |
-        echo "✅ 成功发布到 TestPyPI!"
-        echo "📦 测试安装命令: pip install --index-url https://test.pypi.org/simple/ shouldpy"
-
   # 发布到正式 PyPI
   publish-pypi:
     needs: build
     runs-on: ubuntu-latest
     if: |
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'pypi') ||
-      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, 'rc'))
-    
-    environment:
-      name: pypi
-      url: https://pypi.org/p/shouldpy
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     
     permissions:
       id-token: write  # 用于 OIDC 身份验证
