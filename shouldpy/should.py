@@ -222,7 +222,12 @@ def _call_ai_model(
 
     try:
         response = llm_client.invoke(prompt)
-        return response.content
+        # 确保返回的是字符串类型
+        content = response.content
+        if isinstance(content, str):
+            return content
+        else:
+            return str(content) if content is not None else "FAIL: Empty response from AI"
     except Exception as e:
         return f"FAIL: AI call failed - {str(e)}"
 

@@ -67,8 +67,10 @@ line_length = 100
 
 # 类型检查配置
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
-disallow_untyped_defs = false  # 更宽松的类型检查
+disallow_untyped_defs = false
 ignore_missing_imports = true
+no_implicit_optional = true
+strict_optional = true
