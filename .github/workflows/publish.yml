@@ -105,7 +105,7 @@ jobs:
         twine check dist/*
     
     - name: 上传构建产物
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: python-package-distributions
         path: dist/
@@ -127,7 +127,7 @@ jobs:
     
     steps:
     - name: 下载构建产物
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: python-package-distributions
         path: dist/
@@ -160,7 +160,7 @@ jobs:
     
     steps:
     - name: 下载构建产物
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: python-package-distributions
         path: dist/
@@ -189,7 +189,7 @@ jobs:
       uses: actions/checkout@v4
     
     - name: 下载构建产物
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: python-package-distributions
         path: dist/
@@ -221,12 +221,9 @@ jobs:
         fi
     
     - name: 创建 GitHub Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@v2
       with:
-        tag_name: ${{ github.ref }}
-        release_name: 版本 ${{ steps.version.outputs.version }}
+        name: 版本 ${{ steps.version.outputs.version }}
         body: |
           ## 🎉 shouldpy ${{ steps.version.outputs.version }} 发布
 
@@ -243,13 +240,6 @@ jobs:
           - [更新日志](https://github.com/zhixiangxue/should-ai/blob/main/CHANGELOG.md)
         draft: false
         prerelease: ${{ contains(github.ref, 'rc') }}
-    
-    - name: 上传发布资产
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: dist/shouldpy-${{ steps.version.outputs.version }}-py3-none-any.whl
-        asset_name: shouldpy-${{ steps.version.outputs.version }}-py3-none-any.whl
-        asset_content_type: application/zip
+        files: |
+          dist/shouldpy-${{ steps.version.outputs.version }}-py3-none-any.whl
+          dist/shouldpy-${{ steps.version.outputs.version }}.tar.gz
