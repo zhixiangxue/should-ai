@@ -1,18 +1,21 @@
-import sys
 import os
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from dotenv import load_dotenv
 
 import asyncio
 import uuid
+import pytest
 from langchain_openai import ChatOpenAI
 
-from should import should
+from shouldpy import should
 
+# 加载环境变量
+load_dotenv()
+
+# 从环境变量读取配置
 qwen3 = ChatOpenAI(**{
-    "api_key": "sk-1f97fc05349f4f7cb15e5e34de4805a7",
-    "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    "model": "qwen-plus",
+    "api_key": os.getenv("OPENAI_API_KEY"),
+    "base_url": os.getenv("OPENAI_BASE_URL"),
+    "model": os.getenv("OPENAI_MODEL"),
 })
 
 # 配置LLM客户端
@@ -76,6 +79,34 @@ def calculate_discount(age: int, is_student: bool = False) -> float:
     return discount
 
 
+def calculate_price_silent(original_price: float, discount_rate: float) -> dict:
+    """静默计算价格的函数，主要依靠返回值判断，没有print输出"""
+    # 这个函数故意不使用print，让AI主要通过返回值判断
+    final_price = original_price * (1 - discount_rate)
+    
+    return {
+        "original_price": original_price,
+        "discount_rate": discount_rate,
+        "final_price": final_price,
+        "saved_amount": original_price - final_price
+    }
+
+
+def get_user_level(score: int) -> str:
+    """根据分数获取用户等级，主要通过返回值判断"""
+    # 故意有bug：边界条件处理错误
+    if score >= 90:
+        return "优秀"
+    elif score >= 80:
+        return "良好" 
+    elif score >= 70:
+        return "及格"
+    elif score > 60:  # bug: 应该是 >= 60
+        return "勉强及格"
+    else:
+        return "不及格"
+
+
 # ============== 测试函数 ==============
 
 @should("注册未成年人时必须拒绝并明确提示")
@@ -106,7 +137,45 @@ def test_student_discount():
     return discount
 
 
+# ============== 主要依靠返回值判断的测试用例 ==============
+
+@should("价格计算结果应该包含原价、6折后价格和节省金额")
+def test_price_calculation_structure():
+    """测试价格计算返回结果的数据结构"""
+    result = calculate_price_silent(100.0, 0.4)  # 100元原价，4折
+    return result
+
+
+@should("价格计算应该正确：100元呔6折应该60元")
+def test_price_calculation_accuracy():
+    """测试价格计算的准确性"""
+    result = calculate_price_silent(100.0, 0.4)  # 100元原价，4折
+    return result
+
+
+@should("分数6090分的用户应该是优秀等级")
+def test_excellent_user_level():
+    """测试优秀用户等级判断"""
+    level = get_user_level(90)
+    return level
+
+
+@should("分斗60分的用户应该是勉强及格等级")
+def test_barely_pass_user_level():
+    """测试边界情况：60分的用户等级判断"""
+    level = get_user_level(60)  # 这里会暴露bug
+    return level
+
+
+@should("折扣计算应该返回0到0.4之间的值")
+def test_discount_range():
+    """测试折扣计算返回值范围"""
+    discount = calculate_discount(16)  # 未成年人折扣
+    return discount
+
+
 @should("异步注册未成年人时必须拒绝")
+@pytest.mark.asyncio
 async def test_async_print_register_minor():
     """测试异步print输出的未成年人注册"""
     result = await async_register_user_with_print("小红", 15)
@@ -114,6 +183,7 @@ async def test_async_print_register_minor():
 
 
 @should("异步成年人注册应该成功")
+@pytest.mark.asyncio
 async def test_async_print_register_adult():
     """测试异步print输出的成年人注册"""
     result = await async_register_user_with_print("李四", 30)
@@ -153,6 +223,38 @@ def run_print_tests():
     return passed, failed
 
 
+def run_return_value_tests():
+    """运行主要依靠返回值判断的测试"""
+    print("🔄 开始测试主要依靠返回值判断的函数...")
+
+    tests = [
+        ("test_price_calculation_structure", test_price_calculation_structure),
+        ("test_price_calculation_accuracy", test_price_calculation_accuracy),
+        ("test_excellent_user_level", test_excellent_user_level),
+        ("test_barely_pass_user_level", test_barely_pass_user_level),
+        ("test_discount_range", test_discount_range)
+    ]
+
+    passed = 0
+    failed = 0
+
+    for test_name, test_func in tests:
+        print(f"\n--- 运行 {test_name} ---")
+        try:
+            result = test_func()
+            print(f"✅ {test_name} 通过")
+            passed += 1
+        except AssertionError as e:
+            print(f"❌ {test_name} 失败: {e}")
+            failed += 1
+        except Exception as e:
+            print(f"💥 {test_name} 出错: {e}")
+            failed += 1
+
+    print(f"\n📊 返回值测试结果: {passed} 个通过, {failed} 个失败")
+    return passed, failed
+
+
 async def run_async_print_tests():
     """运行print输出的异步测试"""
     print("\n🔄 开始测试只有print输出的异步函数...")
@@ -183,33 +285,39 @@ async def run_async_print_tests():
 
 
 async def main():
-    """主函数：演示print输出捕获"""
-    print("🚀 AI 测试框架 - Print 输出捕获示例")
+    """主函数：演示print输出和返回值捕获"""
+    print("🚀 AI 测试框架 - Print 输出和返回值捕获示例")
     print("=" * 60)
 
     # 运行print输出的同步测试
     sync_passed, sync_failed = run_print_tests()
 
+    # 运行主要依靠返回值的测试
+    return_passed, return_failed = run_return_value_tests()
+
     # 运行print输出的异步测试
     async_passed, async_failed = await run_async_print_tests()
 
     # 总结
-    total_passed = sync_passed + async_passed
-    total_failed = sync_failed + async_failed
+    total_passed = sync_passed + return_passed + async_passed
+    total_failed = sync_failed + return_failed + async_failed
     total_tests = total_passed + total_failed
 
     print("\n" + "=" * 60)
-    print(f"🏁 Print输出测试总结:")
+    print(f"🏁 测试总结:")
+    print(f"   Print输出测试: {sync_passed} 通过, {sync_failed} 失败")
+    print(f"   返回值测试: {return_passed} 通过, {return_failed} 失败")
+    print(f"   异步测试: {async_passed} 通过, {async_failed} 失败")
     print(f"   总测试数: {total_tests}")
-    print(f"   通过: {total_passed}")
-    print(f"   失败: {total_failed}")
+    print(f"   总通过: {total_passed}")
+    print(f"   总失败: {total_failed}")
     print(f"   成功率: {total_passed / total_tests * 100:.1f}%" if total_tests > 0 else "   成功率: 0%")
 
     if total_failed > 0:
-        print(f"\n⚠️  AI通过分析print输出发现了 {total_failed} 个业务逻辑问题！")
+        print(f"\n⚠️  AI通过分析print输出和返回值发现了 {total_failed} 个业务逻辑问题！")
+        print("   特别是返回值测试更能发现数据结构和逻辑问题")
     else:
-        print(f"\n🎉 所有基于print输出的测试都通过了！")
-
+        print(f"\n🎉 所有基于print输出和返回值的测试都通过了！")
 
 if __name__ == "__main__":
     asyncio.run(main())

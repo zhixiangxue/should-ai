@@ -11,14 +11,14 @@ from langchain_core.language_models import BaseChatModel
 
 class ShouldDecorator:
     """
-    AI驱动的测试断言装饰器类
+    AI-driven test assertion decorator class
     
-    使用方式：
-    from should import should
+    Usage:
+    from shouldpy import should
     
-    should.use(llm)  # 配置LLM
+    should.use(llm)  # Configure LLM
     
-    @should("期望条件")
+    @should("Expected condition")
     def test_function():
         return some_result()
     """
@@ -28,43 +28,43 @@ class ShouldDecorator:
 
     def use(self, llm_client: BaseChatModel):
         """
-        配置LLM客户端
+        Configure LLM client
         
         Args:
-            llm_client: 具有invoke方法的LLM客户端对象
+            llm_client: LLM client object with invoke method
         
         Returns:
-            self: 支持链式调用
+            self: Support method chaining
         """
         self._llm_client = llm_client
         return self
 
     def __call__(self, condition: str, llm_client=None):
         """
-        装饰器调用方法
+        Decorator call method
         
         Args:
-            condition: 期望条件的自然语言描述
-            llm_client: 可选的LLM客户端，如果不提供则使用全局配置
+            condition: Natural language description of expected condition
+            llm_client: Optional LLM client, uses global configuration if not provided
         
         Returns:
-            装饰器函数
+            Decorator function
         """
 
         def decorator(test_func):
-            # 确定使用哪个LLM客户端
+            # Determine which LLM client to use
             effective_llm = llm_client if llm_client is not None else self._llm_client
             if effective_llm is None:
-                raise ValueError("没有配置LLM客户端，请使用should.use(llm)进行配置或在装饰器中传入llm_client参数")
+                raise ValueError("No LLM client configured, please use should.use(llm) to configure or pass llm_client parameter in decorator")
             if inspect.iscoroutinefunction(test_func):
-                # 处理异步函数
+                # Handle async functions
                 @functools.wraps(test_func)
                 async def async_wrapper(*args, **kwargs):
-                    # 日志和输出捕获容器
+                    # Log and output capture containers
                     captured_logs = []
                     captured_prints = []
 
-                    # 创建标准logging处理器
+                    # Create standard logging handler
                     class LogCapture(logging.Handler):
                         def emit(self, record):
                             captured_logs.append({
@@ -73,55 +73,55 @@ class ShouldDecorator:
                                 "timestamp": record.created
                             })
 
-                    # 创建print输出捕获器
+                    # Create print output capturer
                     class PrintCapture(io.StringIO):
                         def write(self, s):
-                            if s.strip():  # 忽略空行
+                            if s.strip():  # Ignore empty lines
                                 captured_prints.append(s.strip())
                             return super().write(s)
 
-                    # 添加日志捕获器
+                    # Add log capturer
                     log_capture = LogCapture()
                     root_logger = logging.getLogger()
                     root_logger.addHandler(log_capture)
                     original_level = root_logger.level
                     root_logger.setLevel(logging.INFO)
 
-                    # 捕获print输出
+                    # Capture print output
                     original_stdout = sys.stdout
                     print_capture = PrintCapture()
                     sys.stdout = print_capture
 
                     try:
-                        # 执行被装饰的异步函数
+                        # Execute the decorated async function
                         actual_result = await test_func(*args, **kwargs)
 
-                        # 调用AI判断
+                        # Call AI for judgment
                         verdict = _call_ai_model(condition, captured_logs, captured_prints, actual_result,
                                                  effective_llm)
                         if not verdict.startswith("PASS"):
-                            raise AssertionError(f"AI 断言失败: {verdict}")
+                            raise AssertionError(f"AI assertion failed: {verdict}")
 
                         return actual_result
 
                     finally:
-                        # 恢复标准输出
+                        # Restore standard output
                         sys.stdout = original_stdout
-                        # 清理日志处理器
+                        # Clean up log handler
                         root_logger.removeHandler(log_capture)
                         root_logger.setLevel(original_level)
 
                 return async_wrapper
 
             else:
-                # 处理同步函数
+                # Handle sync functions
                 @functools.wraps(test_func)
                 def sync_wrapper(*args, **kwargs):
-                    # 日志和输出捕获容器
+                    # Log and output capture containers
                     captured_logs = []
                     captured_prints = []
 
-                    # 创建标准logging处理器
+                    # Create standard logging handler
                     class LogCapture(logging.Handler):
                         def emit(self, record):
                             captured_logs.append({
@@ -130,41 +130,41 @@ class ShouldDecorator:
                                 "timestamp": record.created
                             })
 
-                    # 创建print输出捕获器
+                    # Create print output capturer
                     class PrintCapture(io.StringIO):
                         def write(self, s):
-                            if s.strip():  # 忽略空行
+                            if s.strip():  # Ignore empty lines
                                 captured_prints.append(s.strip())
                             return super().write(s)
 
-                    # 添加日志捕获器
+                    # Add log capturer
                     log_capture = LogCapture()
                     root_logger = logging.getLogger()
                     root_logger.addHandler(log_capture)
                     original_level = root_logger.level
                     root_logger.setLevel(logging.INFO)
 
-                    # 捕获print输出
+                    # Capture print output
                     original_stdout = sys.stdout
                     print_capture = PrintCapture()
                     sys.stdout = print_capture
 
                     try:
-                        # 执行被装饰的同步函数
+                        # Execute the decorated sync function
                         actual_result = test_func(*args, **kwargs)
 
-                        # 调用AI判断
+                        # Call AI for judgment
                         verdict = _call_ai_model(condition, captured_logs, captured_prints, actual_result,
                                                  effective_llm)
                         if not verdict.startswith("PASS"):
-                            raise AssertionError(f"AI 断言失败: {verdict}")
+                            raise AssertionError(verdict)
 
                         return actual_result
 
                     finally:
-                        # 恢复标准输出
+                        # Restore standard output
                         sys.stdout = original_stdout
-                        # 清理日志处理器
+                        # Clean up log handler
                         root_logger.removeHandler(log_capture)
                         root_logger.setLevel(original_level)
 
@@ -175,46 +175,45 @@ class ShouldDecorator:
 
 def _call_ai_model(condition: str, logs: list[dict], prints: list[str], actual_result=None, llm_client=None) -> str:
     """
-    调用AI模型进行判断
+    Call AI model for judgment
     
     Args:
-        condition: 期望条件的自然语言描述
-        logs: 捕获的日志列表
-        prints: 捕获的print输出列表
-        actual_result: 函数的实际返回结果
-        llm_client: LLM客户端对象
+        condition: Natural language description of expected condition
+        logs: List of captured logs
+        prints: List of captured print outputs
+        actual_result: Actual return result of the function
+        llm_client: LLM client object
     
     Returns:
-        AI的判断结果，以"PASS"或"FAIL:"开头
+        AI judgment result, starting with "PASS" or "FAIL:"
     """
     if llm_client is None:
-        return "FAIL: 没有配置LLM客户端"
+        return "FAIL: No LLM client configured"
 
-    # 构建提示词
+    # Build prompt
     prompt = textwrap.dedent(f"""
-    下面是一份测试执行的上下文信息，期望条件是："{condition}"
+    Below is the context information from a test execution, expected condition: "{condition}"
     
-    执行日志:
-    {json.dumps(logs, ensure_ascii=False, indent=2) if logs else "无日志输出"}
+    Execution logs:
+    {json.dumps(logs, ensure_ascii=False, indent=2) if logs else "No log output"}
     
-    Print输出:
-    {json.dumps(prints, ensure_ascii=False, indent=2) if prints else "无print输出"}
+    Print outputs:
+    {json.dumps(prints, ensure_ascii=False, indent=2) if prints else "No print output"}
     
-    函数返回结果:
+    Function return result:
     {actual_result}
     
-    请根据日志、print输出和返回结果判断是否满足期望条件，回复格式：
-    PASS  或  FAIL: 具体原因
-    无需多余解释。
+    Please judge whether the expected condition is satisfied based on logs, print outputs and return result. Response format:
+    PASS  or  FAIL: specific reason
+    No additional explanation needed.
     """)
 
     try:
         response = llm_client.invoke(prompt)
-        print(">>>>>>>>>>>>>>>>>>>>>>>>", response.content)
         return response.content
     except Exception as e:
-        return f"FAIL: AI调用失败 - {str(e)}"
+        return f"FAIL: AI call failed - {str(e)}"
 
 
-# 创建全局实例
+# Create global instance
 should = ShouldDecorator()

@@ -1,0 +1,74 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shouldpy"
+version = "0.1.0"
+description = "AI-driven test assertion decorator for natural language testing"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "zx", email = "your-email@example.com"},
+]
+keywords = ["testing", "ai", "assertion", "decorator", "llm", "natural-language"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Software Development :: Quality Assurance",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "langchain-core>=0.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=22.0",
+    "isort>=5.0",
+    "mypy>=1.0",
+]
+openai = [
+    "langchain-openai>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/zhixiangxue/should-ai"
+Repository = "https://github.com/zhixiangxue/should-ai"
+Documentation = "https://github.com/zhixiangxue/should-ai#readme"
+"Bug Tracker" = "https://github.com/zhixiangxue/should-ai/issues"
+Changelog = "https://github.com/zhixiangxue/should-ai/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+include = ["shouldpy*"]
+
+[tool.setuptools.package-data]
+shouldpy = ["py.typed"]
+
+# 代码格式化配置
+[tool.black]
+line-length = 100
+target-version = ['py38']
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+# 类型检查配置
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false  # 更宽松的类型检查
+ignore_missing_imports = true

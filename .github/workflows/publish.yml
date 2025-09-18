@@ -1,0 +1,255 @@
+name: 发布到 PyPI
+
+on:
+  # 当推送 tag 时触发（用于正式发布）
+  push:
+    tags:
+      - 'v*'
+  
+  # 手动触发（用于测试和灵活发布）
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '发布环境'
+        required: true
+        default: 'testpypi'
+        type: choice
+        options:
+        - testpypi
+        - pypi
+      version:
+        description: '版本号 (可选，留空则使用当前版本)'
+        required: false
+        type: string
+
+jobs:
+  # 代码质量检查和测试
+  quality-check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+    
+    - name: 设置 Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: 安装依赖
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+        pip install pytest pytest-asyncio black isort mypy
+        pip install langchain-openai  # 用于测试
+    
+    - name: 代码格式检查
+      run: |
+        black --check shouldpy/
+        isort --check-only shouldpy/
+    
+    - name: 类型检查
+      run: |
+        mypy shouldpy/ --ignore-missing-imports
+    
+    - name: 基础导入测试
+      run: |
+        python -c "from shouldpy import should; print('Import successful!')"
+    
+    - name: 运行测试（如果存在）
+      run: |
+        if [ -d "tests" ]; then
+          pytest tests/ -v
+        else
+          echo "No tests directory found, skipping tests"
+        fi
+
+  # 构建包
+  build:
+    needs: quality-check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # 获取完整历史，用于版本标签
+    
+    - name: 设置 Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.12"
+    
+    - name: 安装构建工具
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine
+    
+    - name: 更新版本号 (如果手动指定)
+      if: github.event.inputs.version != ''
+      run: |
+        # 更新 pyproject.toml 中的版本号
+        sed -i 's/version = "[^"]*"/version = "${{ github.event.inputs.version }}"/' pyproject.toml
+        # 更新 __init__.py 中的版本号  
+        sed -i 's/__version__ = "[^"]*"/__version__ = "${{ github.event.inputs.version }}"/' shouldpy/__init__.py
+    
+    - name: 构建包
+      run: |
+        python -m build
+    
+    - name: 检查包完整性
+      run: |
+        twine check dist/*
+    
+    - name: 上传构建产物
+      uses: actions/upload-artifact@v3
+      with:
+        name: python-package-distributions
+        path: dist/
+
+  # 发布到 TestPyPI
+  publish-testpypi:
+    needs: build
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'testpypi') ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && contains(github.ref, 'rc'))
+    
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/shouldpy
+    
+    permissions:
+      id-token: write  # 用于 OIDC 身份验证
+    
+    steps:
+    - name: 下载构建产物
+      uses: actions/download-artifact@v3
+      with:
+        name: python-package-distributions
+        path: dist/
+    
+    - name: 发布到 TestPyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        repository-url: https://test.pypi.org/legacy/
+        verbose: true
+    
+    - name: 发布通知
+      run: |
+        echo "✅ 成功发布到 TestPyPI!"
+        echo "📦 测试安装命令: pip install --index-url https://test.pypi.org/simple/ shouldpy"
+
+  # 发布到正式 PyPI
+  publish-pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'pypi') ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, 'rc'))
+    
+    environment:
+      name: pypi
+      url: https://pypi.org/p/shouldpy
+    
+    permissions:
+      id-token: write  # 用于 OIDC 身份验证
+    
+    steps:
+    - name: 下载构建产物
+      uses: actions/download-artifact@v3
+      with:
+        name: python-package-distributions
+        path: dist/
+    
+    - name: 发布到 PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        verbose: true
+    
+    - name: 发布通知
+      run: |
+        echo "🎉 成功发布到 PyPI!"
+        echo "📦 安装命令: pip install shouldpy"
+
+  # 创建 GitHub Release
+  create-release:
+    needs: [build, publish-pypi]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    
+    permissions:
+      contents: write
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+    
+    - name: 下载构建产物
+      uses: actions/download-artifact@v3
+      with:
+        name: python-package-distributions
+        path: dist/
+    
+    - name: 提取版本号
+      id: version
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+    
+    - name: 生成发布说明
+      id: release_notes
+      run: |
+        VERSION=${{ steps.version.outputs.version }}
+        
+        # 从 CHANGELOG.md 提取当前版本的变更记录
+        if [ -f "CHANGELOG.md" ]; then
+          # 提取当前版本的变更记录
+          CHANGES=$(awk "/## \[$VERSION\]/ {flag=1; next} /## \[/ && flag {exit} flag" CHANGELOG.md)
+          if [ -n "$CHANGES" ]; then
+            echo "RELEASE_NOTES<<EOF" >> $GITHUB_OUTPUT
+            echo "$CHANGES" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "RELEASE_NOTES=发布版本 $VERSION" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "RELEASE_NOTES=发布版本 $VERSION" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: 创建 GitHub Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: 版本 ${{ steps.version.outputs.version }}
+        body: |
+          ## 🎉 shouldpy ${{ steps.version.outputs.version }} 发布
+
+          ${{ steps.release_notes.outputs.RELEASE_NOTES }}
+
+          ## 📦 安装方式
+          ```bash
+          pip install shouldpy==${{ steps.version.outputs.version }}
+          ```
+
+          ## 🔗 链接
+          - [PyPI 页面](https://pypi.org/project/shouldpy/${{ steps.version.outputs.version }}/)
+          - [文档](https://github.com/zhixiangxue/should-ai#readme)
+          - [更新日志](https://github.com/zhixiangxue/should-ai/blob/main/CHANGELOG.md)
+        draft: false
+        prerelease: ${{ contains(github.ref, 'rc') }}
+    
+    - name: 上传发布资产
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: dist/shouldpy-${{ steps.version.outputs.version }}-py3-none-any.whl
+        asset_name: shouldpy-${{ steps.version.outputs.version }}-py3-none-any.whl
+        asset_content_type: application/zip
