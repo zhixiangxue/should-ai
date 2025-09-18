@@ -5,6 +5,7 @@ import json
 import logging
 import sys
 import textwrap
+from typing import Any, Dict, List, Optional
 
 from langchain_core.language_models import BaseChatModel
 
@@ -182,7 +183,11 @@ class ShouldDecorator:
 
 
 def _call_ai_model(
-    condition: str, logs: list[dict], prints: list[str], actual_result=None, llm_client=None
+    condition: str,
+    logs: List[Dict[str, Any]],
+    prints: List[str],
+    actual_result: Any = None,
+    llm_client: Optional[BaseChatModel] = None,
 ) -> str:
     """
     Call AI model for judgment
